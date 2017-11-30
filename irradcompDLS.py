@@ -83,7 +83,6 @@ def filenames(folder):
     #removes the duplicates in the list
     z = list(set(z))
     #removes the duplicates in the list
-    numimgsinsets = []
     for setdir in y:
         leneb4 = len(e)
         for otherdir in p:
@@ -93,95 +92,55 @@ def filenames(folder):
                 if os.path.exists(u) == True:
                 #if that image / location actually exists append it to the list
                     e.append(u)
-        numimginset = len(e) - leneb4
-        numimgsinsets.append(numimginset)
-    return e, numimgsinsets
+    return e
 
 import exiftool
 
 #looping through folders and photos and generating new sun angle corrected photos
 d = 0
+#empty list for saving DLS values
+
 while d < numfolds:
     origimgpaths = filenames(origimgdirs[d])
     # going through each image and determining the DLS value and adding it to a list to calculate the maximum later
-    # loop through each SET folder 
-    numset = len(origimgpaths[1])
-    
-    n = 0
-    numimgs = 0
-    a = 0 
-    b = 0
-    
-    while n <  numset:
-        #empty list for saving DLS values
-        DLSvalues = []
 
-        if origimgpaths[1][n] == 0:
-            n = n + 1
-        else:
-            numimgs = origimgpaths[1][n] + numimgs
-            
-            
-            while a < numimgs:
-                origfilename = origimgpaths[0][a]
-                subdir = origfilename.split(origimgdirs[d])
-                filename = imgdirs[d] + subdir[1]
-                if not os.path.exists(filename):
-                    a = a + 1
-                else:
-                    #read the DLS value 
-                    os.chdir('E:\Georef_UAS_Program')
-                    with exiftool.ExifTool() as et:
-                        DLS = et.get_tag('XMP:SpectralIrradiance',origfilename)
-                    DLS = float(DLS)
-                    DLSvalues.append(DLS)
-                    a = a + 1
-            
-            imax = max(DLSvalues)
-            DLSlen = len(DLSvalues)
-            
-            while b < numimgs:
-                origfilename = origimgpaths[0][b]
-                name = origfilename[-14:]
-                subdir = origfilename.split(origimgdirs[d])
-                filename = imgdirs[d] + subdir[1]
-                if not os.path.exists(filename):
-                    b = b + 1
-                else:
-                    t = gdal.Open(filename)
-                    numpyimg = numpy.array(t.GetRasterBand(1).ReadAsArray())
-                    dimensions = numpyimg.shape
-                    h = int(dimensions[0])
-                    w = int(dimensions[1])
-        
-                    #getting DLS value from list
-                    startimgnum = (numimgs - DLSlen)
-                    DLSnum = (b-startimgnum)
-                    i = DLSvalues[DLSnum]
-                    
-                    if imax < 0.6:
-                        numpyimg = numpyimg * (1-i)
-                    elif imax >= 0.6:
-                        numpyimg = numpyimg * (i/imax)
-                
-                    #save new matrix as new image
-                    #create appropriate subdirectories
-                    savedir = savedirs[d] + subdir[1][:-15]
-                    subdir1 = subdir[1].split('SET')
-                    setdir = savedirs[d] + subdir1[0]+'SET'
-                    if not os.path.exists(setdir):
-                        os.mkdir(setdir)
-                    if not os.path.exists(savedir):
-                        os.mkdir(savedir)
-                    os.chdir(savedir)
-                    # performs exposure compensation on images using equation from Pix4D, 2017
-                    img = PIL.Image.fromarray(numpyimg, mode=None)
-                    img.save(name)
-                    b = b + 1
-            
-            n = n + 1
+    numimgs = len(origimgpaths)
+    a = 0 
     
+    os.chdir('F:\Workspace')
+    with exiftool.ExifTool() as et:
+        DLS = et.get_tag_batch('XMP:SpectralIrradiance',origimgpaths[:])
+                
+    while a < numimgs:
+        origfilename = origimgpaths[a]
+        subdir = origfilename.split(origimgdirs[d])
+        filename = imgdirs[d] + subdir[1]
+        if not os.path.exists(filename):
+            a = a + 1
+        else:
+            name = filename[-14:]
+            #read the DLS value 
+            DLSnum = float(DLS[a])
+            t = gdal.Open(filename)
+            numpyimg = numpy.array(t.GetRasterBand(1).ReadAsArray())
+            
+            numpyimg = numpyimg * (1/DLSnum)
+            
+            #save new matrix as new image
+            #create appropriate subdirectories
+            savedir = savedirs[d] + subdir[1][:-15]
+            subdir1 = subdir[1].split('SET')
+            setdir = savedirs[d] + subdir1[0]+'SET'
+            if not os.path.exists(setdir):
+                os.mkdir(setdir)
+            if not os.path.exists(savedir):
+                os.mkdir(savedir)
+            os.chdir(savedir)
+            # performs exposure compensation on images using equation from Pix4D, 2017
+            img = PIL.Image.fromarray(numpyimg, mode=None)
+            img.save(name)
+            
+            a = a + 1
     d = d + 1
-        
-        
+            
    

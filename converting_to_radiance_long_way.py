@@ -1,17 +1,24 @@
-import Tkinter
-import PIL
-from osgeo import gdal
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Aug 15 12:57:17 2017
+
+@author: kmason
+"""
+
+#MicaSense Radiometric Calibration
+#this code requires that images were taken with RedEdge hardware version 2.1.0 or later
+#Keep images in the same directory format as they were taken in 
 import os
+from osgeo import gdal
 import numpy
 import exifread
-import exiftool
+import math
+import Tkinter
 import tkFileDialog
+import PIL
 from Tkinter import *
-import math 
 
 numfoldlist = []
-# create blank list for putting number of folders in
-# when I refer to folders I am talking about the folder that contains the "SET" folders
 
 def take():
     numfold = int(e1.get())
@@ -19,11 +26,9 @@ def take():
     numfoldlist.append(numfold)
     master.destroy ()
     return
-#function for saving the number of folders that the user inputs with the Tkinter GUI
 
-# creating a Tkinter GUI for asking user for number of folders
 master = Tk()
-master.title("Exposure Compensation, DLS Correction and Vignetting Correction for MicaSense RedEdge Imagery")
+master.title("Radiometric Correction for MicaSense Imagery")
 Label(master, text="Number of folders:").grid(row=1)
 e1 = Entry(master)
 e1.grid(row=1, column=1)
@@ -32,48 +37,41 @@ Button(master, text='Enter', command=take).grid(row=17, column=1, sticky=W, pady
 
 master.mainloop ()
 
-#retrieving the number of folders from the list
 numfolds = numfoldlist[0]
 
-#Tkinter GUI for selecting the directory where the exiftool.exe is located
-#this .exe file works with the exiftool module which is the only way that I've found to extract the irradiance and vignetting data from the exif of the images
 root = Tkinter.Tk()
 currdir = os.getcwd() # current working directory
 exiftoolloc = str(tkFileDialog.askdirectory(parent=root, initialdir=currdir, title='Please select the directory where exiftool.exe is located'))
 
-# creating a blank list for the image directories and save directories
-# there will be an image and save directory for each "folder"
-imgdirs = []
-savedirs = []
 
+origimgdirs = []
+savedirs = []
+    
 h = 1
-#counter for looping through folders
 while h <= numfolds:
-    #only perform an Exposure Compensation if you camera was on automatic mode (i.e. had changing shutter speed)
-    #Tkinter GUI for selecting image directory/"folder"
     root = Tkinter.Tk()
     currdir = os.getcwd() # current working directory
-    img_dir = str(tkFileDialog.askdirectory(parent=root, initialdir=currdir, title='Please select your image directory for folder ' + str(h) )) # generates GUI for selecting directory with images
-    imgdirs.append(img_dir)
-    #Tkinter GUI for selecting save directory for that folder
+    orig_img_dir = str(tkFileDialog.askdirectory(parent=root, initialdir=currdir, title='Please select the directory which contains the "SET" folders of your original images with exif information for folder ' + str(h) + '.' )) # generates GUI for selecting directory with images
+    origimgdirs.append(orig_img_dir)
+    
+    #get save directory 
     root = Tkinter.Tk()
-    save_dir = str(tkFileDialog.askdirectory(parent=root, initialdir=img_dir, title='Please select your save directory for folder ' + str(h) )) # generates GUI for selecting save directory
+    save_dir = str(tkFileDialog.askdirectory(parent=root, initialdir=orig_img_dir, title='Please select your save directory for folder ' + str(h) + '.' )) # generates GUI for selecting save directory
     savedirs.append(save_dir)
     
     h = h + 1
-
-# Tkinter GUI for selecting a band images (1-5) for extracting vignette correction values from
+    
 root = Tkinter.Tk()
-currdir = imgdirs[0]
-band1 = str(tkFileDialog.askopenfilename(parent=root, initialdir=currdir, title='Please select a band 1 image')) # generates GUI for selecting directory with images
+currdir = os.getcwd() # current working directory
+band1 = str(tkFileDialog.askopenfilename(parent=root, initialdir=orig_img_dir, title='Please select a band 1 image')) # generates GUI for selecting directory with images
 
-band2 = band1[:-6]+'_2.tif'
+band2 = band1[:-5]+"2.tif"
 
-band3 = band1[:-6]+'_3.tif'
+band3 = band1[:-5]+"3.tif"
 
-band4 = band1[:-6]+'_4.tif'
+band4 = band1[:-5]+"4.tif"
 
-band5 = band1[:-6]+'_5.tif'
+band5 = band1[:-5]+"5.tif"
 
 # generate list with paths for all images
 def filenames(folder):
@@ -114,7 +112,6 @@ def filenames(folder):
 
 import exiftool 
 
-#extracting the vignetting info from band images 1 - 5
 os.chdir(exiftoolloc)
 with exiftool.ExifTool() as et:
     k1 = et.get_tag('XMP:VignettingPolynomial',band1)
@@ -127,8 +124,7 @@ with exiftool.ExifTool() as et:
     c4 = et.get_tag('XMP:VignettingCenter',band4)
     k5 = et.get_tag('XMP:VignettingPolynomial',band5)
     c5 = et.get_tag('XMP:VignettingCenter',band5)
-
-# Extracting values for calculating correction matrix for vignetting
+        
 k1_0 = float(k1[0])
 k1_1 = k1[1]
 k1_2 = k1[2]
@@ -174,22 +170,15 @@ k5_5 = k5[5]
 c5_x = c5[0]
 c5_y = c5[1]
 
-#height and width of micasense rededge images in pixels
 h = 960
 w = 1280
 
-#blank image for saving new corrected images in
 newimage = numpy.ones((h,w))
-#creating blank images for vignette correction matrices
 band1vig = numpy.ones((h,w))
 band2vig = numpy.ones((h,w))
 band3vig = numpy.ones((h,w))
 band4vig = numpy.ones((h,w))
 band5vig = numpy.ones((h,w))
-
-#generating vignette correction matrices using equations suggested by MicaSense and values from the exif of the images
-
-#band 1
 
 x = 0
 y = 0
@@ -206,12 +195,10 @@ while x < w:
         y = y + 1
     y=0
     x = x + 1
-
-#band 2
     
 x = 0
 y = 0
-
+            
 while x < w:
     while y < h:
         x = x + 1
@@ -224,8 +211,6 @@ while x < w:
         y = y + 1
     y=0
     x = x + 1
-
-#band 3
 
 x = 0
 y = 0
@@ -243,8 +228,6 @@ while x < w:
     y=0
     x = x + 1
 
-#band 4
-
 x = 0
 y = 0
             
@@ -260,8 +243,7 @@ while x < w:
         y = y + 1
     y=0
     x = x + 1
-    
-#band 5 
+
 x = 0
 y = 0
             
@@ -279,31 +261,40 @@ while x < w:
     x = x + 1
     
 
-
-#looping through folders
 d = 0
+h = 960
+w = 1280
 
 while d < numfolds:
+    origimgpaths = filenames(origimgdirs[d])
     
-    imgpaths = filenames(imgdirs[d])
-    # generating a list of filenames for folder "d"
-    
-    numimgs = len(imgpaths)
-    #how many images to loop through
+    numimgs = len(origimgpaths)
+
+    a = 0
     
     # going through each image and determining the DLS value
     os.chdir(exiftoolloc)
     with exiftool.ExifTool() as et:
-        DLS = et.get_tag_batch('XMP:SpectralIrradiance',imgpaths[:])
+        Rad = et.get_tag_batch('XMP:RadiometricCalibration',origimgpaths[:])
+        blacklevel = et.get_tag_batch('EXIF:BlackLevel',origimgpaths[:])
+    
+
+    while a < numimgs:  
+        blacklevellist = str(blacklevel[a]).split(' ')
+        blavg = (float(blacklevellist[0])+float(blacklevellist[1])+float(blacklevellist[2])+float(blacklevellist[3]))/4.0
+        pbl = blavg/65536
         
-    a = 0
-    while a < numimgs:
-        filename = imgpaths[a]
+        a1 = float(Rad[a][0])
+        a2 = float(Rad[a][1])
+        a3 = float(Rad[a][2])
+    
+        filename = origimgpaths[a]
+        
         name = filename[-14:]
-        # opens each image as numpyarray
         t = gdal.Open(filename)
         numpyimg = numpy.array(t.GetRasterBand(1).ReadAsArray())
-    
+        
+        
         # reads exposure, aperture and ISO speed
         
         f = open(filename,'rb')
@@ -320,7 +311,7 @@ while d < numfolds:
             exp = str(exp)
             exp = exp.split('/')
             exp = float(exp[0])/float(exp[1])
-    
+        
         #ISO
         if not 'EXIF ISOSpeed' in tags:
             K = 'x'
@@ -329,34 +320,38 @@ while d < numfolds:
             K = tags['EXIF ISOSpeed']
             K = str(K)
             K = int(K)
-    
-        # saving images in the same subdirectory format in the save directory
+            K = K/100
+
         if exp == 'x' or K == 'x':
             #if the exif is missing exposure or ISO value, skip that image
             a = a + 1
         else:
-            #perform exposure compensation
-            numpyimg = numpyimg * ((1/(exp*K)))
+            normalpixel = numpyimg/(65536.0)
+            newimage = numpy.zeros((h,w))
             
-            #perform DLS compensation
-            DLSnum = float(DLS[a])
-            numpyimg = numpyimg * (1/DLSnum)
+            x = 0
+            y = 0
             
-            #perform vignette correction based on what band it is
-       
+            while x < w:
+                while y < h:
+                    newimage[y,x]= (a1/K) * ((normalpixel[y,x]-pbl)/(exp+(a2*(y+1)-(a3*exp*(y+1)))))
+                    y = y + 1
+                y=0
+                x = x + 1
+            
             if name[-6:]=='_1.tif':
-                newimage = numpyimg / band1vig
+                newimage = newimage/ band1vig
             elif name[-6:]=='_2.tif':
-                newimage = numpyimg / band2vig
+                newimage = newimage / band2vig
             elif name[-6:]=='_3.tif':
-                newimage = numpyimg / band3vig
+                newimage = newimage / band3vig
             elif name[-6:]=='_4.tif':
-                newimage = numpyimg / band4vig
+                newimage = newimage / band4vig
             elif name[-6:]=='_5.tif':
-                newimage = numpyimg / band5vig
-            
+                newimage = newimage / band5vig
+                
             #split filename at image directory
-            subdir = filename.split(imgdirs[d]) 
+            subdir = filename.split(origimgdirs[d]) 
             # merging save directory for folder "d" with the SET and 000 folders for the specific image file
             savedir = savedirs[d] + subdir[1][:-15]
             subdir1 = subdir[1].split('SET')
@@ -366,12 +361,8 @@ while d < numfolds:
                 os.mkdir(setdir)
             if not os.path.exists(savedir):
                 os.mkdir(savedir)
-            #changing directory to the save directory
             os.chdir(savedir)
-            # saving numpy array as TIFF
             img = PIL.Image.fromarray(newimage, mode=None)
             img.save(name)
-            #loop through images
             a = a + 1
-    #looping through folders
     d = d + 1

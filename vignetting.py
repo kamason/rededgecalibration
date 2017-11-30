@@ -111,7 +111,7 @@ while d < numfolds:
 
     a = 0
     
-    os.chdir('E:\Georef_UAS_Program')
+    os.chdir('F:\Workspace')
     with exiftool.ExifTool() as et:
         k = et.get_tag_batch('XMP:VignettingPolynomial',origimgpaths[:])
         c = et.get_tag_batch('XMP:VignettingCenter',origimgpaths[:])

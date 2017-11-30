@@ -40,17 +40,18 @@ imgdirs = []
 savedirs = []
 
 h = 1
+currdir = os.getcwd()
 while h <= numfolds:
     #get directory for photos that will be edited
     root = Tkinter.Tk()
-    img_dir = str(tkFileDialog.askdirectory(parent=root, initialdir=os.getcwd(), title='Please select the directory which contains the "SET" folders of the float images to convert to 16 bit for folder ' + str(h) + '.' )) # generates GUI for selecting directory with images
+    img_dir = str(tkFileDialog.askdirectory(parent=root, initialdir=currdir, title='Please select the directory which contains the "SET" folders of the float images to convert to 16 bit for folder ' + str(h) + '.' )) # generates GUI for selecting directory with images
     imgdirs.append(img_dir)
     
     #get save directory 
     root = Tkinter.Tk()
     save_dir = str(tkFileDialog.askdirectory(parent=root, initialdir=img_dir, title='Please select your save directory for folder ' + str(h) + '.' )) # generates GUI for selecting save directory
     savedirs.append(save_dir)
-    
+    currdir = img_dir
     h = h + 1
 
 #function for generating list of images
