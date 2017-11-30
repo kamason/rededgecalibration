@@ -19,24 +19,30 @@ import time
 import datetime
 from heapq import nsmallest
 
-#ELC Code for Reading MicaSense RedEdge Images and performing an empirical line calibration on them
-#This code assumes you have two calibration targets with different reflectances for each instance 
+#Reading MicaSense RedEdge Images and performing an empirical line calibration on them
+#This code assumes you have one calibration target 
 #This code chooses a calibration target based on time values
-# All corrections (such as vignette, exposure, etc.) must have been done to all images before putting them in this code
+#This code is for converting radiance images to reflectance images 
 
+#Empty lists for panel averages
 DN1_light= []
 DN2_light = []
 DN3_light = []
 DN4_light = []
 DN5_light = []
+
+#Empty list for panel standard devations
 stdev1 = []
 stdev2 = []
 stdev3 = []
 stdev4 = []
 stdev5 = []
 
+#List for holding number of folders taken from Tkinter GUI
 numfoldlist = []
+#List for holding image folders, there will be as many directories as there are folders
 imgdirs = []
+#List for holding save directories. There will be as many save directories as there are image directories above.
 savedirs = []
 
 def take2():
@@ -46,6 +52,7 @@ def take2():
     master.destroy ()
     return
 
+#GUI for asking user how many folders they will be inputting
 master = Tk()
 master.title("Empirical Line Calibration based on Irradiance Values for MicaSense RedEdge Imagery")
 Label(master, text="Number of folders:").grid(row=1)
@@ -56,8 +63,10 @@ Button(master, text='Enter', command=take2).grid(row=17, column=1, sticky=W, pad
 
 master.mainloop ()
 
+#extracting the number of folders from the list, this is just a quirk of Tkinter
 numfolds = numfoldlist[0]
 
+#For every folder the user will input an image directory for location of radiance images and a save directory
 h = 1
 currdir = os.getcwd()
 currdir2 = os.getcwd()
@@ -120,7 +129,7 @@ def filenames(folder):
     return e
 
 
-#get user input
+#get user input for reference values of panel
 def take():
     # assigning variables to the user inputs
     ref1 = float(e2.get())
@@ -181,7 +190,7 @@ ref5light = tarref5[0]
 
 tardirs = []
 
-#have user select original calibration target images until they hit cancel
+#have user select original calibration target images until they hit cancel, these images are  not the radiance images, but the original raw images.
 band1 = '1'
 currdir = imgdirs[0]
 while band1 !='':
@@ -410,8 +419,10 @@ while b < len(tardirs):
     b = b + 1
 
 time1 = []
+#this will be a list of times for panel images
 s = 0
 
+# This will be the noise % calculation for the panels that will go in a txt file 
 noise1 = []
 noise2 = []
 noise3 = []
@@ -475,6 +486,7 @@ while d < numfolds:
     
     # opens each image as numpyarray
     imgpaths = filenames(imgdirs[d])
+    #determining the original image paths based on the original target image paths to get original exif info
     origpaths = []
     for x in imgpaths:
         y = x.split('\\')
@@ -491,8 +503,11 @@ while d < numfolds:
         
     a = 0
     while a < numimgs:
+        #path to image being corrected (radiance)
         filename = imgpaths[a]
+        #path to original raw version of that image with exif info
         origfilename = origpaths[a]
+        #name of image
         name = filename[-14:]
         
         #read time from exif info
@@ -510,22 +525,26 @@ while d < numfolds:
             
         time = hour + (minute/float(60))+ (second/float(60)/float(60))
         
+        #open image and convert to numpy array
         t = gdal.Open(filename)
         numpyimg = numpy.array(t.GetRasterBand(1).ReadAsArray())
         
         difftime = []
         
+        #determine the differences between image time and panel times to find the panel that was taken at the closest time
         for x in time1:
             difftime.append(abs(time - x))
-            
+        
+        #determining the index value for the minimum time difference to determine which panel to use for calibration
         locclose = difftime.index(min(difftime))
-            
-      
         
         #determine which band and calculate equation for converting DN to ref based on time, and then convert DN to ref
         if name[-6:]=='_1.tif':
+            #finding the average panel values for the panel with the closest time to the image
             DNlight = DN1_light[locclose]
+            #calculating factor for converting to reflectance
             m = (ref1light/DNlight)
+            #convert to reflectance
             ref = (numpyimg)*m
         elif name[-6:]=='_2.tif':
             DNlight = DN2_light[locclose]
@@ -543,7 +562,11 @@ while d < numfolds:
             DNlight = DN5_light[locclose]
             m = (ref5light/DNlight)
             ref = (numpyimg)*m
-            
+        
+        #Saving the images in the same file format as they were originally
+        #checking if folder is already there and if not, the folder is generated
+        #The file structure is essentially \\PATHOFSAVEDIRECTORY\\000SET\\000
+        #You have to determine what number the set folder is (i.e. 000SET or 001SET or 002SET) as well as which final folder number (000, 001, 002 etc.)
         subdir = filename.split(imgdirs[d])        
         savedir = savedirs[d] + subdir[1][:-15]
         subdir1 = subdir[1].split('SET')
@@ -553,8 +576,8 @@ while d < numfolds:
         if not os.path.exists(savedir):
             os.mkdir(savedir)
         os.chdir(savedir)
+        #save image as a floating tif
         img = PIL.Image.fromarray(ref, mode=None)
         img.save(name)
         a = a + 1
-            # exports images as tiffs
     d = d + 1

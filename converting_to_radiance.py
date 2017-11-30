@@ -5,7 +5,7 @@ Created on Sat Nov 18 13:01:46 2017
 @author: kmason
 """
 
-#radiance conversion using MicaSense moduless
+#radiance conversion using MicaSense modules
 import micasense.utils as msutils
 import micasense.metadata as metadata
 import Tkinter
@@ -15,8 +15,11 @@ from Tkinter import *
 import os
 import matplotlib.pyplot as plt
 
+
+#List for holding number of folders taken from Tkinter GUI
 numfoldlist = []
 
+#function for saving user input to Tkinter GUI
 def take():
     numfold = int(e1.get())
     e1.delete(0,END)
@@ -24,6 +27,7 @@ def take():
     master.destroy ()
     return
 
+#GUI for asking user how many folders the user will be inputting
 master = Tk()
 master.title("Radiometric Correction for MicaSense Imagery")
 Label(master, text="Number of folders:").grid(row=1)
@@ -34,17 +38,20 @@ Button(master, text='Enter', command=take).grid(row=17, column=1, sticky=W, pady
 
 master.mainloop ()
 
+#extracting the number of folders from the list, this is just a quirk of Tkinter
 numfolds = numfoldlist[0]
 
+#ask user where exiftool.exe is located. This is neccessary for using the exiftool module.
 root = Tkinter.Tk()
 currdir = os.getcwd() # current working directory
 exiftoolloc = str(tkFileDialog.askdirectory(parent=root, initialdir=currdir, title='Please select the directory where exiftool.exe is located'))
 
 
-#selecting folders
+#empty list for image directories and save directories. There will be the same number of each that corresponds to the number of folders.
 origimgdirs = []
 savedirs = []
-    
+
+#For every folder user selects image directory of images to be corrected and save directory 
 h = 1
 while h <= numfolds:
     root = Tkinter.Tk()
@@ -97,13 +104,15 @@ def filenames(folder):
     return e
 
 d = 0
+#for looping through folders
 while d < numfolds:
+    #determining the file paths for the images in the image directory provided by the user
     origimgpaths = filenames(origimgdirs[d])
     
     numimgs = len(origimgpaths)
     
     a = 0
-    
+    #loop through images in folder "d"
     while a < numimgs:
 
         imageName = origimgpaths[a]
@@ -111,12 +120,17 @@ while d < numfolds:
         name = imageName[-14:]
         exiftoolPath = None
         if os.name == 'nt':
-            exiftoolPath = 'F:/Workspace/exiftool.exe'
+            exiftoolPath = exiftoolloc
         # get image metadata
         meta = metadata.Metadata(imageName, exiftoolPath=exiftoolPath)
         
+        #calculating radiance image from raw image using micasense module 
         radianceImage, L, V, R = msutils.raw_image_to_radiance(meta, imageRaw)
         
+        #Saving the images in the same file format as they were originally
+        #checking if folder is already there and if not, the folder is generated
+        #The file structure is essentially \\PATHOFSAVEDIRECTORY\\000SET\\000
+        #You have to determine what number the set folder is (i.e. 000SET or 001SET or 002SET) as well as which final folder number (000, 001, 002 etc.)
         #split filename at image directory
         subdir = imageName.split(origimgdirs[d]) 
         # merging save directory for folder "d" with the SET and 000 folders for the specific image file
@@ -131,5 +145,6 @@ while d < numfolds:
         os.chdir(savedir)
         img = PIL.Image.fromarray(radianceImage, mode=None)
         img.save(name)
+        #save image as tif
         a = a + 1
     d = d + 1
